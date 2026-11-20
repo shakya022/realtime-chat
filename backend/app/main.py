@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from . import models  # noqa: F401  (registers the tables)
 from .config import settings
 from .database import Base, engine
-from .routers import auth
+from .routers import auth, chat, rooms
 
 Base.metadata.create_all(bind=engine)
 
@@ -19,6 +19,8 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(rooms.router)
+app.include_router(chat.router)
 
 
 @app.get("/health")

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Chat WebSocket test</title>
+  <style>
+    body { font-family: sans-serif; max-width: 640px; margin: 2rem auto; }
+    #log { border: 1px solid #ccc; height: 300px; overflow: auto; padding: 8px; margin: 8px 0; }
+    input { padding: 6px; }
+  </style>
+</head>
+<body>
+  <h3>Chat WebSocket test</h3>
+  <input id="token" placeholder="paste token" size="40">
+  <input id="room" placeholder="room id" size="6" value="1">
+  <button id="connect">Connect</button>
+  <p>Online: <span id="online">-</span> <em id="typing"></em></p>
+  <div id="log"></div>
+  <input id="text" placeholder="type a message" size="50">
+  <button id="send">Send</button>
+
+  <script>
+    let ws, typingTimer;
+    const $ = (id) => document.getElementById(id);
+
+    function addLine(text) {
+      const d = document.createElement("div");
+      d.textContent = text;
+      $("log").appendChild(d);
+      $("log").scrollTop = $("log").scrollHeight;
+    }
+
+    function showMessage(m) {
+      const time = new Date(m.created_at).toLocaleTimeString();
+      addLine(`[${time}] ${m.user}: ${m.content}`);
+    }
+
+    $("connect").onclick = () => {
+      if (ws) ws.close();
+      const token = encodeURIComponent($("token").value.trim());
+      ws = new WebSocket(`ws://127.0.0.1:8000/ws/rooms/${$("room").value}?token=${token}`);
+      ws.onopen = () => addLine("-- connected --");
+      ws.onclose = () => addLine("-- disconnected --");
+      ws.onmessage = (e) => {
+        const m = JSON.parse(e.data);
+        if (m.type === "history") m.messages.forEach(showMessage);
+        else if (m.type === "message") showMessage(m);
+        else if (m.type === "presence") $("online").textContent = m.users.join(", ");
+        else if (m.type === "typing") {
+          $("typing").textContent = m.user + " is typing...";
+          clearTimeout(typingTimer);
+          typingTimer = setTimeout(() => ($("typing").textContent = ""), 1500);
+        }
+      };
+    };
+
+    function send() {
+      const t = $("text").value.trim();
+      if (!t || !ws || ws.readyState !== 1) return;
+      ws.send(JSON.stringify({ type: "message", content: t }));
+      $("text").value = "";
+    }
+
+    $("send").onclick = send;
+    $("text").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") send();
+      else if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: "typing" }));
+    });
+  </script>
+</body>
+</html>
