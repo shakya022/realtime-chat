@@ -13,10 +13,11 @@ const STATUS_INFO = {
   connecting: ["Connecting...", "bg-yellow-400"],
   connected: ["Connected", "bg-green-400"],
   disconnected: ["Reconnecting...", "bg-red-400"],
-  rejected: ["Not allowed. Please log in again.", "bg-red-400"],
+  rejected: ["You no longer have access to this chat", "bg-red-400"],
 };
 
-export default function ChatRoom({ room, user }) {
+export default function ChatRoom({ room, user, otherOnline = false, onOpenInfo }) {
+  const isDm = room.kind === "dm";
   const [messages, setMessages] = useState([]);
   const [online, setOnline] = useState([]);
   const [typingUsers, setTypingUsers] = useState([]);
@@ -140,16 +141,44 @@ export default function ChatRoom({ room, user }) {
 
   return (
     <div className="flex flex-col h-full">
-      <header className="px-6 py-3 border-b border-slate-700 flex items-center justify-between">
-        <div className="min-w-0">
-          <h2 className="text-lg font-semibold"># {room.name}</h2>
-          <p className="text-xs text-slate-400 truncate">
-            Online: {online.length > 0 ? online.join(", ") : "-"}
-          </p>
+      <header className="px-6 py-3 border-b border-slate-700 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
+          {isDm && room.other_user && (
+            <Avatar
+              username={room.other_user.username}
+              userId={room.other_user.id}
+              version={room.other_user.avatar_version}
+              size={40}
+              online={otherOnline}
+            />
+          )}
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold truncate">
+              {isDm ? room.name : `# ${room.name}`}
+            </h2>
+            <p className="text-xs text-slate-400 truncate">
+              {isDm
+                ? otherOnline
+                  ? "Online"
+                  : "Offline"
+                : `Here now: ${online.length > 0 ? online.join(", ") : "-"}`}
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-2 text-xs text-slate-400 shrink-0">
-          <span className={`inline-block w-2 h-2 rounded-full ${statusColor}`} />
-          {statusLabel}
+
+        <div className="flex items-center gap-4 shrink-0">
+          {!isDm && onOpenInfo && (
+            <button
+              onClick={onOpenInfo}
+              className="rounded-lg bg-slate-700 hover:bg-slate-600 px-3 py-1.5 text-xs"
+            >
+              Members &amp; invite
+            </button>
+          )}
+          <div className="flex items-center gap-2 text-xs text-slate-400">
+            <span className={`inline-block w-2 h-2 rounded-full ${statusColor}`} />
+            {statusLabel}
+          </div>
         </div>
       </header>
 
@@ -207,7 +236,13 @@ export default function ChatRoom({ room, user }) {
           onChange={handleChange}
           maxLength={2000}
           disabled={status !== "connected"}
-          placeholder={status === "connected" ? `Message #${room.name}` : "Connecting..."}
+          placeholder={
+            status === "connected"
+              ? isDm
+                ? `Message ${room.name}`
+                : `Message #${room.name}`
+              : "Connecting..."
+          }
           className="flex-1 rounded-lg bg-slate-700 px-4 py-2 outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
         />
         <button

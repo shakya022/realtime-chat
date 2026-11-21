@@ -2,14 +2,14 @@ import base64
 import binascii
 import time
 
-from fastapi import APIRouter, Depends, HTTPException, Response
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..deps import get_current_user
-from ..models import User
-from ..schemas import ProfileUpdate, UserOut
+from ..models import Friendship, User
+from ..schemas import ProfileUpdate, UserOut, UserSearchOut
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -56,6 +56,51 @@ def update_me(
     db.commit()
     db.refresh(user)
     return user
+
+
+@router.get("/search", response_model=list[UserSearchOut])
+def search_users(
+    q: str = Query(min_length=2, max_length=30),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Find people by username (at least 2 characters) so you can add them as friends."""
+    term = q.strip()
+    if len(term) < 2:
+        return []
+    escaped = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    found = db.scalars(
+        select(User)
+        .where(User.username.ilike(f"%{escaped}%", escape="\\"), User.id != user.id)
+        .order_by(User.username)
+        .limit(20)
+    ).all()
+
+    # How each result relates to me: friends, request sent, request received, or none
+    relation = {}
+    for fr in db.scalars(
+        select(Friendship).where(
+            or_(Friendship.requester_id == user.id, Friendship.addressee_id == user.id)
+        )
+    ).all():
+        other = fr.addressee_id if fr.requester_id == user.id else fr.requester_id
+        if fr.status == "accepted":
+            relation[other] = "friends"
+        elif fr.requester_id == user.id:
+            relation[other] = "request_sent"
+        else:
+            relation[other] = "request_received"
+
+    return [
+        UserSearchOut(
+            id=u.id,
+            username=u.username,
+            about=u.about or "",
+            avatar_version=u.avatar_version,
+            relation=relation.get(u.id, "none"),
+        )
+        for u in found
+    ]
 
 
 @router.get("/{user_id}/avatar")

@@ -46,6 +46,7 @@ async function request(path, { method = "GET", body, auth = false } = {}) {
   return data;
 }
 
+// ---------- account ----------
 export const registerUser = (username, password) =>
   request("/auth/register", { method: "POST", body: { username, password } });
 
@@ -57,7 +58,45 @@ export const getMe = () => request("/auth/me", { auth: true });
 export const updateProfile = (changes) =>
   request("/users/me", { method: "PATCH", body: changes, auth: true });
 
+// ---------- people and friends ----------
+export const searchUsers = (q) =>
+  request(`/users/search?q=${encodeURIComponent(q)}`, { auth: true });
+
+export const listFriends = () => request("/friends", { auth: true });
+
+export const listRequests = () => request("/friends/requests", { auth: true });
+
+export const sendFriendRequest = (userId) =>
+  request("/friends/requests", { method: "POST", body: { user_id: userId }, auth: true });
+
+export const acceptRequest = (requestId) =>
+  request(`/friends/requests/${requestId}/accept`, { method: "POST", auth: true });
+
+export const removeRequest = (requestId) =>
+  request(`/friends/requests/${requestId}`, { method: "DELETE", auth: true });
+
+export const unfriend = (userId) =>
+  request(`/friends/${userId}`, { method: "DELETE", auth: true });
+
+// ---------- chats ----------
 export const listRooms = () => request("/rooms", { auth: true });
 
 export const createRoom = (name) =>
   request("/rooms", { method: "POST", body: { name }, auth: true });
+
+export const joinGroup = (code) =>
+  request("/rooms/join", { method: "POST", body: { code }, auth: true });
+
+export const openDm = (userId) =>
+  request("/dms", { method: "POST", body: { user_id: userId }, auth: true });
+
+export const listMembers = (roomId) => request(`/rooms/${roomId}/members`, { auth: true });
+
+export const addMember = (roomId, userId) =>
+  request(`/rooms/${roomId}/members`, { method: "POST", body: { user_id: userId }, auth: true });
+
+export const leaveGroup = (roomId) =>
+  request(`/rooms/${roomId}/members/me`, { method: "DELETE", auth: true });
+
+export const resetInviteCode = (roomId) =>
+  request(`/rooms/${roomId}/invite/reset`, { method: "POST", auth: true });

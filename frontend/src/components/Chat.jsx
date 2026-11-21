@@ -1,59 +1,191 @@
-import { useCallback, useEffect, useState } from "react";
-import { createRoom, listRooms } from "../api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  acceptRequest,
+  createRoom,
+  joinGroup,
+  listFriends,
+  listRequests,
+  listRooms,
+  openDm,
+  removeRequest,
+  sendFriendRequest,
+  unfriend,
+} from "../api";
+import useUserSocket from "../useUserSocket";
 import Avatar from "./Avatar";
 import ChatRoom from "./ChatRoom";
+import ChatsTab from "./ChatsTab";
+import GroupPanel from "./GroupPanel";
+import PeopleTab from "./PeopleTab";
 import ProfileModal from "./ProfileModal";
+
+function TabButton({ active, onClick, children }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+        active
+          ? "text-white border-indigo-500"
+          : "text-slate-400 border-transparent hover:text-slate-200"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
 
 export default function Chat({ user, onLogout, onUserUpdate }) {
   const [rooms, setRooms] = useState([]);
+  const [friends, setFriends] = useState([]);
+  const [requests, setRequests] = useState({ incoming: [], outgoing: [] });
   const [activeId, setActiveId] = useState(null);
-  const [newName, setNewName] = useState("");
-  const [error, setError] = useState("");
+  const [unread, setUnread] = useState({});
+  const [tab, setTab] = useState("chats");
   const [loading, setLoading] = useState(true);
   const [showProfile, setShowProfile] = useState(false);
+  const [showGroup, setShowGroup] = useState(false);
+  const activeIdRef = useRef(null);
+
+  useEffect(() => {
+    activeIdRef.current = activeId;
+  }, [activeId]);
+
+  // Runs an action. If the login expired, log out; otherwise pass the error on.
+  const guard = useCallback(
+    async (fn) => {
+      try {
+        return await fn();
+      } catch (err) {
+        if (err.status === 401) {
+          onLogout();
+          return undefined;
+        }
+        throw err;
+      }
+    },
+    [onLogout]
+  );
 
   const loadRooms = useCallback(async () => {
     try {
       const data = await listRooms();
       setRooms(data);
-      setActiveId((prev) => prev ?? data[0]?.id ?? null);
-      setError("");
+      setActiveId((prev) =>
+        prev !== null && data.some((r) => r.id === prev) ? prev : (data[0]?.id ?? null)
+      );
     } catch (err) {
       if (err.status === 401) onLogout();
-      else setError(err.message);
     } finally {
       setLoading(false);
     }
   }, [onLogout]);
 
-  // Load rooms now, then re-check every 10 seconds so rooms made by others appear
-  useEffect(() => {
-    loadRooms();
-    const timer = setInterval(loadRooms, 10000);
-    return () => clearInterval(timer);
-  }, [loadRooms]);
-
-  async function handleCreate(e) {
-    e.preventDefault();
-    const name = newName.trim();
-    if (!name) return;
-    setError("");
+  const loadFriends = useCallback(async () => {
     try {
-      const room = await createRoom(name);
-      setRooms((prev) => [...prev, room].sort((a, b) => a.name.localeCompare(b.name)));
-      setActiveId(room.id);
-      setNewName("");
+      const [friendList, requestList] = await Promise.all([listFriends(), listRequests()]);
+      setFriends(friendList);
+      setRequests(requestList);
     } catch (err) {
       if (err.status === 401) onLogout();
-      else setError(err.message);
     }
+  }, [onLogout]);
+
+  useEffect(() => {
+    loadRooms();
+    loadFriends();
+  }, [loadRooms, loadFriends]);
+
+  // Live updates pushed by the server
+  useUserSocket({
+    onConnected: () => {
+      loadFriends();
+      loadRooms();
+    },
+    onEvent: (event) => {
+      if (event.type === "rooms_changed") {
+        loadRooms();
+      } else if (event.type === "friends_changed") {
+        loadFriends();
+      } else if (event.type === "presence") {
+        setFriends((prev) =>
+          prev.map((f) => (f.id === event.user_id ? { ...f, online: event.online } : f))
+        );
+      } else if (event.type === "new_message") {
+        if (event.room_id !== activeIdRef.current) {
+          setUnread((prev) => ({ ...prev, [event.room_id]: true }));
+        }
+      }
+    },
+  });
+
+  function selectRoom(id) {
+    setActiveId(id);
+    setUnread((prev) => {
+      if (!prev[id]) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
   }
 
+  // ----- actions used by the tabs -----
+  const handleCreateGroup = (name) =>
+    guard(async () => {
+      const room = await createRoom(name);
+      await loadRooms();
+      selectRoom(room.id);
+    });
+
+  const handleJoin = (code) =>
+    guard(async () => {
+      const room = await joinGroup(code);
+      await loadRooms();
+      selectRoom(room.id);
+      setTab("chats");
+    });
+
+  const handleMessage = (userId) =>
+    guard(async () => {
+      const room = await openDm(userId);
+      await loadRooms();
+      selectRoom(room.id);
+      setTab("chats");
+    });
+
+  const handleSendRequest = (userId) =>
+    guard(async () => {
+      await sendFriendRequest(userId);
+      await loadFriends();
+    });
+
+  const handleAccept = (requestId) =>
+    guard(async () => {
+      await acceptRequest(requestId);
+      await loadFriends();
+    });
+
+  const handleRemoveRequest = (requestId) =>
+    guard(async () => {
+      await removeRequest(requestId);
+      await loadFriends();
+    });
+
+  const handleUnfriend = (userId) =>
+    guard(async () => {
+      await unfriend(userId);
+      await Promise.all([loadFriends(), loadRooms()]);
+    });
+
   const activeRoom = rooms.find((r) => r.id === activeId);
+  const otherOnline =
+    activeRoom?.kind === "dm"
+      ? Boolean(friends.find((f) => f.id === activeRoom.other_user?.id)?.online)
+      : false;
+  const hasUnread = Object.keys(unread).length > 0;
 
   return (
     <div className="h-screen flex bg-slate-900 text-white">
-      <aside className="w-64 shrink-0 bg-slate-800 border-r border-slate-700 flex flex-col">
+      <aside className="w-72 shrink-0 bg-slate-800 border-r border-slate-700 flex flex-col">
         <div className="px-4 pt-4 pb-2">
           <h1 className="text-lg font-bold">Realtime Chat</h1>
         </div>
@@ -75,44 +207,42 @@ export default function Chat({ user, onLogout, onUserUpdate }) {
           </div>
         </button>
 
-        <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-1">
-          <p className="px-2 text-xs uppercase tracking-wide text-slate-500">Rooms</p>
-          {loading && <p className="px-2 text-sm text-slate-500">Loading...</p>}
-          {!loading && rooms.length === 0 && (
-            <p className="px-2 text-sm text-slate-500">No rooms yet. Create one below.</p>
-          )}
-          {rooms.map((room) => (
-            <button
-              key={room.id}
-              onClick={() => setActiveId(room.id)}
-              className={`w-full text-left rounded-lg px-3 py-2 text-sm transition-colors ${
-                room.id === activeId
-                  ? "bg-indigo-600 text-white"
-                  : "text-slate-300 hover:bg-slate-700"
-              }`}
-            >
-              # {room.name}
-            </button>
-          ))}
-        </nav>
+        <div className="flex border-b border-slate-700">
+          <TabButton active={tab === "chats"} onClick={() => setTab("chats")}>
+            Chats
+            {hasUnread && <span className="w-2 h-2 rounded-full bg-indigo-400" />}
+          </TabButton>
+          <TabButton active={tab === "people"} onClick={() => setTab("people")}>
+            People
+            {requests.incoming.length > 0 && (
+              <span className="inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full bg-indigo-600 text-xs">
+                {requests.incoming.length}
+              </span>
+            )}
+          </TabButton>
+        </div>
 
-        <form onSubmit={handleCreate} className="px-3 py-3 border-t border-slate-700 space-y-2">
-          {error && <p className="text-xs text-red-300">{error}</p>}
-          <input
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="New room name"
-            minLength={2}
-            maxLength={50}
-            className="w-full rounded-lg bg-slate-700 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+        {tab === "chats" ? (
+          <ChatsTab
+            rooms={rooms}
+            activeId={activeId}
+            unread={unread}
+            friends={friends}
+            onSelect={selectRoom}
+            onCreateGroup={handleCreateGroup}
           />
-          <button
-            type="submit"
-            className="w-full rounded-lg bg-slate-700 hover:bg-slate-600 px-3 py-2 text-sm"
-          >
-            Create room
-          </button>
-        </form>
+        ) : (
+          <PeopleTab
+            friends={friends}
+            requests={requests}
+            onSendRequest={handleSendRequest}
+            onAccept={handleAccept}
+            onRemoveRequest={handleRemoveRequest}
+            onUnfriend={handleUnfriend}
+            onMessage={handleMessage}
+            onJoin={handleJoin}
+          />
+        )}
 
         <button
           onClick={onLogout}
@@ -124,10 +254,25 @@ export default function Chat({ user, onLogout, onUserUpdate }) {
 
       <main className="flex-1 min-w-0">
         {activeRoom ? (
-          <ChatRoom key={`${activeRoom.id}-${user.username}`} room={activeRoom} user={user} />
+          <ChatRoom
+            key={`${activeRoom.id}-${user.username}`}
+            room={activeRoom}
+            user={user}
+            otherOnline={otherOnline}
+            onOpenInfo={() => setShowGroup(true)}
+          />
         ) : (
-          <div className="h-full flex items-center justify-center text-slate-500">
-            {loading ? "Loading..." : "Create or pick a room to start chatting."}
+          <div className="h-full flex flex-col items-center justify-center gap-2 text-slate-500 px-6 text-center">
+            {loading ? (
+              "Loading..."
+            ) : (
+              <>
+                <p>Nothing here yet.</p>
+                <p className="text-sm">
+                  Create a group, join one with an invite code, or add friends in the People tab.
+                </p>
+              </>
+            )}
           </div>
         )}
       </main>
@@ -137,6 +282,17 @@ export default function Chat({ user, onLogout, onUserUpdate }) {
           user={user}
           onClose={() => setShowProfile(false)}
           onSaved={onUserUpdate}
+        />
+      )}
+
+      {showGroup && activeRoom?.kind === "group" && (
+        <GroupPanel
+          key={activeRoom.id}
+          room={activeRoom}
+          user={user}
+          friends={friends}
+          onClose={() => setShowGroup(false)}
+          onChanged={loadRooms}
         />
       )}
     </div>

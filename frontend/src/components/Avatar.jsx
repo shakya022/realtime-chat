@@ -18,14 +18,15 @@ function colorFor(name) {
   return COLORS[hash % COLORS.length];
 }
 
-// Shows the user's photo, or a coloured circle with their first letter
-export default function Avatar({ username, userId, version, size = 36 }) {
+// Shows the user's photo, or a coloured circle with their first letter.
+// Pass online={true|false} to add a green/grey status dot.
+export default function Avatar({ username, userId, version, size = 36, online }) {
   const [failedVersion, setFailedVersion] = useState(null);
   const src = avatarUrl(userId, version);
   const style = { width: size, height: size, fontSize: size * 0.42 };
 
-  if (src && failedVersion !== version) {
-    return (
+  const face =
+    src && failedVersion !== version ? (
       <img
         src={src}
         alt={username}
@@ -33,15 +34,25 @@ export default function Avatar({ username, userId, version, size = 36 }) {
         className="rounded-full object-cover shrink-0"
         onError={() => setFailedVersion(version)}
       />
+    ) : (
+      <div
+        style={style}
+        className={`${colorFor(username)} rounded-full flex items-center justify-center font-semibold text-white shrink-0 select-none`}
+      >
+        {username.charAt(0).toUpperCase()}
+      </div>
     );
-  }
+
+  if (online === undefined) return face;
 
   return (
-    <div
-      style={style}
-      className={`${colorFor(username)} rounded-full flex items-center justify-center font-semibold text-white shrink-0 select-none`}
-    >
-      {username.charAt(0).toUpperCase()}
-    </div>
+    <span className="relative inline-block shrink-0" style={{ width: size, height: size }}>
+      {face}
+      <span
+        className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-slate-800 ${
+          online ? "bg-green-400" : "bg-slate-500"
+        }`}
+      />
+    </span>
   );
 }

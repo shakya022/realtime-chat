@@ -1,0 +1,59 @@
+import { useEffect, useRef } from "react";
+import { WS_URL, getToken } from "./api";
+
+export default function useUserSocket({ onEvent, onConnected }) {
+  const handlers = useRef({ onEvent, onConnected });
+
+  useEffect(() => {
+    handlers.current = { onEvent, onConnected };
+  });
+
+  useEffect(() => {
+    let stopped = false;
+    let ws;
+    let retryTimer;
+    let pingTimer;
+    let attempts = 0;
+
+    function connect() {
+      const token = encodeURIComponent(getToken() || "");
+      ws = new WebSocket(`${WS_URL}/ws/me?token=${token}`);
+
+      ws.onopen = () => {
+        if (stopped) return;
+        attempts = 0;
+        handlers.current.onConnected?.();
+        // A small ping now and then keeps the connection from being closed when idle
+        pingTimer = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) ws.send("ping");
+        }, 25000);
+      };
+
+      ws.onmessage = (event) => {
+        if (stopped) return;
+        try {
+          handlers.current.onEvent?.(JSON.parse(event.data));
+        } catch {
+          // ignore malformed messages
+        }
+      };
+
+      ws.onclose = (event) => {
+        clearInterval(pingTimer);
+        if (stopped || event.code === 1008) return;
+        const delay = Math.min(1000 * 2 ** attempts, 10000);
+        attempts += 1;
+        retryTimer = setTimeout(connect, delay);
+      };
+    }
+
+    connect();
+
+    return () => {
+      stopped = true;
+      clearTimeout(retryTimer);
+      clearInterval(pingTimer);
+      ws?.close();
+    };
+  }, []);
+}
