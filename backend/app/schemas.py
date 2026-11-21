@@ -9,6 +9,8 @@ class UserCreate(BaseModel):
 class UserOut(BaseModel):
     id: int
     username: str
+    about: str = ""
+    avatar_version: int = 0
 
     model_config = {"from_attributes": True}
 
@@ -17,6 +19,15 @@ class TokenOut(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserOut
+
+
+class ProfileUpdate(BaseModel):
+    username: str | None = Field(
+        default=None, min_length=3, max_length=30, pattern=r"^[A-Za-z0-9_]+$"
+    )
+    about: str | None = Field(default=None, max_length=200)
+    # None = leave unchanged, "" = remove photo, otherwise a JPEG data URL
+    avatar: str | None = Field(default=None, max_length=250_000)
 
 
 class RoomCreate(BaseModel):

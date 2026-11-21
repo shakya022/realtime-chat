@@ -228,3 +228,5 @@ __marimo__/
 # frontend
 node_modules/
 dist/
+# editor settings
+.vscode/

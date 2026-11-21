@@ -35,5 +35,5 @@ export default function App() {
     return <AuthForm onAuth={setUser} />;
   }
 
-  return <Chat user={user} onLogout={handleLogout} />;
+  return <Chat user={user} onLogout={handleLogout} onUserUpdate={setUser} />;
 }

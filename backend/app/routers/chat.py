@@ -19,7 +19,9 @@ def message_to_dict(m: Message) -> dict:
     return {
         "type": "message",
         "id": m.id,
+        "user_id": m.user.id,
         "user": m.user.username,
+        "avatar_version": m.user.avatar_version,
         "content": m.content,
         "created_at": created.isoformat(),
     }
@@ -67,12 +69,12 @@ async def room_socket(websocket: WebSocket, room_id: int, token: str = ""):
     user_id, username = auth
 
     await manager.connect(room_id, websocket, username)
-    await websocket.send_json({"type": "history", "messages": load_history(room_id)})
-    await manager.broadcast(
-        room_id, {"type": "presence", "users": manager.online_users(room_id)}
-    )
-
     try:
+        await websocket.send_json({"type": "history", "messages": load_history(room_id)})
+        await manager.broadcast(
+            room_id, {"type": "presence", "users": manager.online_users(room_id)}
+        )
+
         while True:
             raw = await websocket.receive_text()
             try:
@@ -93,7 +95,7 @@ async def room_socket(websocket: WebSocket, room_id: int, token: str = ""):
                 await manager.broadcast(
                     room_id, {"type": "typing", "user": username}, exclude=websocket
                 )
-    except WebSocketDisconnect:
+    except (WebSocketDisconnect, RuntimeError):
         pass
     finally:
         manager.disconnect(room_id, websocket)

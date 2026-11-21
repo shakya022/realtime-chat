@@ -7,6 +7,10 @@ export const getToken = () => localStorage.getItem(TOKEN_KEY);
 export const setToken = (token) => localStorage.setItem(TOKEN_KEY, token);
 export const clearToken = () => localStorage.removeItem(TOKEN_KEY);
 
+// Returns null when the user has no photo (version 0)
+export const avatarUrl = (userId, version) =>
+  version ? `${API_URL}/users/${userId}/avatar?v=${version}` : null;
+
 function formatError(data, status) {
   const detail = data?.detail;
   if (typeof detail === "string") return detail;
@@ -49,6 +53,9 @@ export const loginUser = (username, password) =>
   request("/auth/login", { method: "POST", body: { username, password } });
 
 export const getMe = () => request("/auth/me", { auth: true });
+
+export const updateProfile = (changes) =>
+  request("/users/me", { method: "PATCH", body: changes, auth: true });
 
 export const listRooms = () => request("/rooms", { auth: true });
 

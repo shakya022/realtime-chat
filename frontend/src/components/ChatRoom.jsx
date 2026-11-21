@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { WS_URL, getToken } from "../api";
+import Avatar from "./Avatar";
+
+const TYPING_SEND_INTERVAL = 1000; // tell the server at most once per second
+const TYPING_VISIBLE_MS = 3000; // hide the indicator after 3 s without new events
 
 function formatTime(iso) {
   return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -35,7 +39,7 @@ export default function ChatRoom({ room, user }) {
       clearTimeout(timers[name]);
       timers[name] = setTimeout(() => {
         setTypingUsers((prev) => prev.filter((u) => u !== name));
-      }, 2000);
+      }, TYPING_VISIBLE_MS);
     }
 
     function connect() {
@@ -110,35 +114,40 @@ export default function ChatRoom({ room, user }) {
     e.preventDefault();
     const content = text.trim();
     if (!content) return;
-    if (sendJson({ type: "message", content })) setText("");
+    if (sendJson({ type: "message", content })) {
+      setText("");
+      lastTypingSent.current = 0; // next keystroke announces typing right away
+    }
   }
 
   function handleChange(e) {
-    setText(e.target.value);
+    const value = e.target.value;
+    setText(value);
+    if (!value.trim()) return;
     const now = Date.now();
-    if (now - lastTypingSent.current > 1500) {
+    if (now - lastTypingSent.current > TYPING_SEND_INTERVAL) {
       lastTypingSent.current = now;
       sendJson({ type: "typing" });
     }
   }
 
   let typingText = "";
-  if (typingUsers.length === 1) typingText = `${typingUsers[0]} is typing...`;
-  else if (typingUsers.length === 2) typingText = `${typingUsers.join(" and ")} are typing...`;
-  else if (typingUsers.length > 2) typingText = "Several people are typing...";
+  if (typingUsers.length === 1) typingText = `${typingUsers[0]} is typing`;
+  else if (typingUsers.length === 2) typingText = `${typingUsers.join(" and ")} are typing`;
+  else if (typingUsers.length > 2) typingText = "Several people are typing";
 
   const [statusLabel, statusColor] = STATUS_INFO[status];
 
   return (
     <div className="flex flex-col h-full">
       <header className="px-6 py-3 border-b border-slate-700 flex items-center justify-between">
-        <div>
+        <div className="min-w-0">
           <h2 className="text-lg font-semibold"># {room.name}</h2>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-slate-400 truncate">
             Online: {online.length > 0 ? online.join(", ") : "-"}
           </p>
         </div>
-        <div className="flex items-center gap-2 text-xs text-slate-400">
+        <div className="flex items-center gap-2 text-xs text-slate-400 shrink-0">
           <span className={`inline-block w-2 h-2 rounded-full ${statusColor}`} />
           {statusLabel}
         </div>
@@ -149,9 +158,15 @@ export default function ChatRoom({ room, user }) {
           <p className="text-slate-500 text-sm">No messages yet. Say hello!</p>
         )}
         {messages.map((m) => {
-          const mine = m.user === user.username;
+          const mine = m.user_id === user.id;
           return (
-            <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+            <div key={m.id} className={`flex items-end gap-2 ${mine ? "flex-row-reverse" : ""}`}>
+              <Avatar
+                username={m.user}
+                userId={m.user_id}
+                version={m.avatar_version}
+                size={32}
+              />
               <div
                 className={`max-w-[75%] rounded-2xl px-4 py-2 ${
                   mine ? "bg-indigo-600" : "bg-slate-700"
@@ -169,7 +184,22 @@ export default function ChatRoom({ room, user }) {
         <div ref={bottomRef} />
       </div>
 
-      <div className="h-5 px-6 text-xs text-slate-400">{typingText}</div>
+      <div className="h-6 px-6 flex items-center gap-2 text-sm text-indigo-300">
+        {typingText && (
+          <>
+            <span className="flex gap-1">
+              {[0, 150, 300].map((delay) => (
+                <span
+                  key={delay}
+                  className="w-1.5 h-1.5 rounded-full bg-indigo-300 animate-bounce"
+                  style={{ animationDelay: `${delay}ms` }}
+                />
+              ))}
+            </span>
+            <span>{typingText}</span>
+          </>
+        )}
+      </div>
 
       <form onSubmit={handleSubmit} className="px-6 pb-5 flex gap-3">
         <input
