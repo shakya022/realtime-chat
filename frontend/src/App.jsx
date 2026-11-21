@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import AuthForm from "./components/AuthForm";
+import Chat from "./components/Chat";
 import { clearToken, getMe, getToken } from "./api";
 
 export default function App() {
@@ -17,10 +18,10 @@ export default function App() {
       .finally(() => setChecking(false));
   }, []);
 
-  function handleLogout() {
+  const handleLogout = useCallback(() => {
     clearToken();
     setUser(null);
-  }
+  }, []);
 
   if (checking) {
     return (
@@ -34,16 +35,5 @@ export default function App() {
     return <AuthForm onAuth={setUser} />;
   }
 
-  // Temporary screen. The room list and chat come in the next step.
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-slate-900 text-white">
-      <h1 className="text-2xl font-bold">Signed in as {user.username}</h1>
-      <button
-        onClick={handleLogout}
-        className="rounded-lg bg-slate-700 hover:bg-slate-600 px-4 py-2"
-      >
-        Log out
-      </button>
-    </div>
-  );
+  return <Chat user={user} onLogout={handleLogout} />;
 }

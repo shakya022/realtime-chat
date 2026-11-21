@@ -1,4 +1,5 @@
 export const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+export const WS_URL = API_URL.replace(/^http/, "ws");
 
 const TOKEN_KEY = "chat_token";
 
@@ -48,3 +49,8 @@ export const loginUser = (username, password) =>
   request("/auth/login", { method: "POST", body: { username, password } });
 
 export const getMe = () => request("/auth/me", { auth: true });
+
+export const listRooms = () => request("/rooms", { auth: true });
+
+export const createRoom = (name) =>
+  request("/rooms", { method: "POST", body: { name }, auth: true });
