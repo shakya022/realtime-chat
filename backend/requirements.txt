@@ -4,3 +4,4 @@ sqlalchemy
 pydantic-settings
 pyjwt
 bcrypt
+alembic

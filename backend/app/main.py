@@ -1,14 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import models  # noqa: F401  (registers the tables)
 from .config import settings
-from .database import Base, engine
 from .routers import auth, chat, dms, friends, presence, rooms, users
 
-Base.metadata.create_all(bind=engine)
-
-app = FastAPI(title="Realtime Chat API")
+app = FastAPI(title="BeyondChat API")
 
 app.add_middleware(
     CORSMiddleware,
