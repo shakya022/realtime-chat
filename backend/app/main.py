@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
-from .routers import auth, chat, dms, friends, presence, rooms, users
+from .routers import ai, auth, chat, dms, friends, presence, rooms, users
 
 app = FastAPI(title="BeyondChat API")
 
@@ -19,6 +19,7 @@ app.include_router(users.router)
 app.include_router(friends.router)
 app.include_router(rooms.router)
 app.include_router(dms.router)
+app.include_router(ai.router)
 app.include_router(chat.router)
 app.include_router(presence.router)
 

@@ -53,6 +53,9 @@ def update_me(
             user.avatar = decode_avatar(data.avatar)
             user.avatar_version = time.time_ns() // 1_000_000  # changes on every upload
 
+    if data.ai_enabled is not None:
+        user.ai_enabled = data.ai_enabled
+
     db.commit()
     db.refresh(user)
     return user

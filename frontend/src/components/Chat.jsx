@@ -260,6 +260,7 @@ export default function Chat({ user, onLogout, onUserUpdate }) {
             user={user}
             otherOnline={otherOnline}
             onOpenInfo={() => setShowGroup(true)}
+            onUserUpdate={onUserUpdate}
           />
         ) : (
           <div className="h-full flex flex-col items-center justify-center gap-2 text-slate-500 px-6 text-center">

@@ -100,3 +100,20 @@ export const leaveGroup = (roomId) =>
 
 export const resetInviteCode = (roomId) =>
   request(`/rooms/${roomId}/invite/reset`, { method: "POST", auth: true });
+
+// ---------- AI ----------
+export const aiSmartReplies = (roomId) =>
+  request("/ai/smart-replies", { method: "POST", body: { room_id: roomId }, auth: true });
+
+export const aiTone = (text, tone) =>
+  request("/ai/tone", { method: "POST", body: { text, tone }, auth: true });
+
+export const aiAssist = (text, action, language) =>
+  request("/ai/assist", { method: "POST", body: { text, action, language }, auth: true });
+
+export const aiSummary = (roomId, start, end) =>
+  request("/ai/summary", {
+    method: "POST",
+    body: { room_id: roomId, start: start || null, end: end || null },
+    auth: true,
+  });

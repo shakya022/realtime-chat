@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { WS_URL, getToken } from "../api";
+import AiPanel from "./AiPanel";
 import Avatar from "./Avatar";
 
 const TYPING_SEND_INTERVAL = 1000; // tell the server at most once per second
@@ -16,13 +17,14 @@ const STATUS_INFO = {
   rejected: ["You no longer have access to this chat", "bg-red-400"],
 };
 
-export default function ChatRoom({ room, user, otherOnline = false, onOpenInfo }) {
+export default function ChatRoom({ room, user, otherOnline = false, onOpenInfo, onUserUpdate }) {
   const isDm = room.kind === "dm";
   const [messages, setMessages] = useState([]);
   const [online, setOnline] = useState([]);
   const [typingUsers, setTypingUsers] = useState([]);
   const [status, setStatus] = useState("connecting");
   const [text, setText] = useState("");
+  const [showAi, setShowAi] = useState(false);
 
   const wsRef = useRef(null);
   const bottomRef = useRef(null);
@@ -140,7 +142,7 @@ export default function ChatRoom({ room, user, otherOnline = false, onOpenInfo }
   const [statusLabel, statusColor] = STATUS_INFO[status];
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="relative flex flex-col h-full">
       <header className="px-6 py-3 border-b border-slate-700 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
           {isDm && room.other_user && (
@@ -231,6 +233,15 @@ export default function ChatRoom({ room, user, otherOnline = false, onOpenInfo }
       </div>
 
       <form onSubmit={handleSubmit} className="px-6 pb-5 flex gap-3">
+        <button
+          type="button"
+          onClick={() => setShowAi((v) => !v)}
+          title="AI assistant"
+          aria-label="AI assistant"
+          className="rounded-lg border border-fuchsia-400/40 bg-fuchsia-600/20 hover:bg-fuchsia-600/30 text-fuchsia-200 px-3 py-2 text-sm transition-colors"
+        >
+          ✨ AI
+        </button>
         <input
           value={text}
           onChange={handleChange}
@@ -253,6 +264,20 @@ export default function ChatRoom({ room, user, otherOnline = false, onOpenInfo }
           Send
         </button>
       </form>
+
+      {showAi && (
+        <AiPanel
+          roomId={room.id}
+          draft={text}
+          user={user}
+          onUserUpdate={onUserUpdate}
+          onUse={(result) => {
+            setText(result); // goes into the box for you to edit. Nothing is sent.
+            setShowAi(false);
+          }}
+          onClose={() => setShowAi(false)}
+        />
+      )}
     </div>
   );
 }

@@ -11,6 +11,7 @@ class UserOut(BaseModel):
     username: str
     about: str = ""
     avatar_version: int = 0
+    ai_enabled: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -28,6 +29,7 @@ class ProfileUpdate(BaseModel):
     about: str | None = Field(default=None, max_length=200)
     # None = leave unchanged, "" = remove photo, otherwise a JPEG data URL
     avatar: str | None = Field(default=None, max_length=250_000)
+    ai_enabled: bool | None = None
 
 
 # ---------- people ----------
